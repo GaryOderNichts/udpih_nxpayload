@@ -7,26 +7,31 @@ include $(DEVKITARM)/base_rules
 ################################################################################
 
 IPL_LOAD_ADDR := 0x40008000
-IPL_MAGIC := 0x43544349 #"ICTC"
-include ./Versions.inc
+IPL_MAGIC := 0x44504948 #"DPIH"
 
 ################################################################################
 
-TARGET := hekate
+TARGET := udpih_nxpayload
 BUILDDIR := build
 OUTPUTDIR := output
-SOURCEDIR = bootloader
+SOURCEDIR = source
 BDKDIR := bdk
+UDPIHDIR := udpih
 BDKINC := -I./$(BDKDIR)
 VPATH = $(dir ./$(SOURCEDIR)/) $(dir $(wildcard ./$(SOURCEDIR)/*/)) $(dir $(wildcard ./$(SOURCEDIR)/*/*/))
 VPATH += $(dir $(wildcard ./$(BDKDIR)/)) $(dir $(wildcard ./$(BDKDIR)/*/)) $(dir $(wildcard ./$(BDKDIR)/*/*/))
+VPATH += $(dir $(wildcard ./$(UDPIHDIR)/)) $(dir $(wildcard ./$(UDPIHDIR)/*/)) $(dir $(wildcard ./$(UDPIHDIR)/*/*/))
 
 # Main and graphics.
 OBJS = $(addprefix $(BUILDDIR)/$(TARGET)/, \
 	start.o exception_handlers.o \
 	main.o heap.o \
 	gfx.o tui.o \
-	fe_emmc_tools.o fe_info.o fe_tools.o \
+)
+
+# udpih
+OBJS += $(addprefix $(BUILDDIR)/$(TARGET)/, \
+	device.o \
 )
 
 # Hardware.
@@ -34,20 +39,16 @@ OBJS += $(addprefix $(BUILDDIR)/$(TARGET)/, \
 	bpmp.o ccplex.o clock.o di.o gpio.o i2c.o irq.o mc.o sdram.o \
 	pinmux.o pmc.o se.o smmu.o tsec.o uart.o \
 	fuse.o kfuse.o minerva.o \
-	sdmmc.o sdmmc_driver.o emmc.o sd.o emummc.o \
+	sdmmc.o sdmmc_driver.o emmc.o sd.o \
 	bq24193.o max17050.o max7762x.o max77620-rtc.o \
 	hw_init.o \
+	usbd.o xusbd.o \
 )
 
 # Utilities.
 OBJS += $(addprefix $(BUILDDIR)/$(TARGET)/, \
 	btn.o dirlist.o ianos.o util.o \
 	config.o ini.o \
-)
-
-# Horizon.
-OBJS += $(addprefix $(BUILDDIR)/$(TARGET)/, \
-	hos.o hos_config.o pkg1.o pkg2.o pkg2_ini_kippatch.o fss.o secmon_exo.o \
 )
 
 # Libraries.
@@ -63,8 +64,6 @@ FFCFG_INC := '"../$(SOURCEDIR)/libs/fatfs/ffconf.h"'
 ################################################################################
 
 CUSTOMDEFINES := -DIPL_LOAD_ADDR=$(IPL_LOAD_ADDR) -DBL_MAGIC=$(IPL_MAGIC)
-CUSTOMDEFINES += -DBL_VER_MJ=$(BLVERSION_MAJOR) -DBL_VER_MN=$(BLVERSION_MINOR) -DBL_VER_HF=$(BLVERSION_HOTFX) -DBL_RESERVED=$(BLVERSION_RSVD)
-CUSTOMDEFINES += -DNYX_VER_MJ=$(NYXVERSION_MAJOR) -DNYX_VER_MN=$(NYXVERSION_MINOR) -DNYX_VER_HF=$(NYXVERSION_HOTFX) -DNYX_RESERVED=$(NYXVERSION_RSVD)
 
 # BDK defines.
 CUSTOMDEFINES += -DBDK_MALLOC_NO_DEFRAG -DBDK_MC_ENABLE_AHB_REDIRECT -DBDK_EMUMMC_ENABLE
@@ -83,8 +82,6 @@ ARCH := -march=armv4t -mtune=arm7tdmi -mthumb -mthumb-interwork
 CFLAGS = $(ARCH) -O2 -g -gdwarf-4 -nostdlib -ffunction-sections -fdata-sections -fomit-frame-pointer -fno-inline -std=gnu11 $(WARNINGS) $(CUSTOMDEFINES)
 LDFLAGS = $(ARCH) -nostartfiles -lgcc -Wl,--nmagic,--gc-sections -Xlinker --defsym=IPL_LOAD_ADDR=$(IPL_LOAD_ADDR)
 
-MODULEDIRS := $(wildcard modules/*)
-NYXDIR := $(wildcard nyx)
 LDRDIR := $(wildcard loader)
 TOOLSLZ := $(wildcard tools/lz)
 TOOLSB2C := $(wildcard tools/bin2c)
@@ -92,7 +89,7 @@ TOOLS := $(TOOLSLZ) $(TOOLSB2C)
 
 ################################################################################
 
-.PHONY: all clean $(MODULEDIRS) $(NYXDIR) $(LDRDIR) $(TOOLS)
+.PHONY: all clean $(LDRDIR) $(TOOLS)
 
 all: $(TARGET).bin $(LDRDIR)
 	@printf ICTC49 >> $(OUTPUTDIR)/$(TARGET).bin
@@ -114,12 +111,6 @@ clean: $(TOOLS)
 	@rm -rf $(BUILDDIR)
 	@rm -rf $(OUTPUTDIR)
 
-$(MODULEDIRS):
-	@$(MAKE) --no-print-directory -C $@ $(MAKECMDGOALS) -$(MAKEFLAGS)
-
-$(NYXDIR):
-	@$(MAKE) --no-print-directory -C $@ $(MAKECMDGOALS) -$(MAKEFLAGS)
-
 $(LDRDIR): $(TARGET).bin
 	@$(TOOLSLZ)/lz77 $(OUTPUTDIR)/$(TARGET).bin
 	mv $(OUTPUTDIR)/$(TARGET).bin $(OUTPUTDIR)/$(TARGET)_unc.bin
@@ -134,7 +125,7 @@ $(LDRDIR): $(TARGET).bin
 $(TOOLS):
 	@$(MAKE) --no-print-directory -C $@ $(MAKECMDGOALS) -$(MAKEFLAGS)
 
-$(TARGET).bin: $(BUILDDIR)/$(TARGET)/$(TARGET).elf $(MODULEDIRS) $(NYXDIR) $(TOOLS)
+$(TARGET).bin: $(BUILDDIR)/$(TARGET)/$(TARGET).elf $(TOOLS)
 	$(OBJCOPY) -S -O binary $< $(OUTPUTDIR)/$@
 
 $(BUILDDIR)/$(TARGET)/$(TARGET).elf: $(OBJS)

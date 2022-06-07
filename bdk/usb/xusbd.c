@@ -34,6 +34,9 @@
 
 #include <memory_map.h>
 
+#include "../../udpih/common.h"
+extern udpih_device_t udpih_device;
+
 #define XUSB_TRB_SLOTS 16 //! TODO: Consider upping it.
 #define XUSB_LINK_TRB_IDX (XUSB_TRB_SLOTS - 1)
 #define XUSB_LAST_TRB_IDX (XUSB_TRB_SLOTS - 1)
@@ -1396,135 +1399,6 @@ stall:
 	return USB_RES_OK;
 }
 
-static int _xusb_handle_get_descriptor(usb_ctrl_setup_t *ctrl_setup)
-{
-	u32 size;
-	void *descriptor;
-
-	u32 wLength = ctrl_setup->wLength;
-
-	u8 descriptor_type = ctrl_setup->wValue >> 8;
-	u8 descriptor_subtype = ctrl_setup->wValue & 0xFF;
-
-	switch (descriptor_type)
-	{
-	case USB_DESCRIPTOR_DEVICE:
-		//! TODO USB3: Provide a super speed descriptor.
-/*
-		u32 soc_rev = APB_MISC(APB_MISC_GP_HIDREV);
-		usb_device_descriptor.idProduct  = (soc_rev >> 8)  & 0xFF; // chip_id.
-		usb_device_descriptor.idProduct |= ((soc_rev << 4) | (FUSE(FUSE_SKU_INFO) & 0xF)) << 8; // HIDFAM.
-		usb_device_descriptor.bcdDevice  = (soc_rev >> 16) & 0xF; // MINORREV.
-		usb_device_descriptor.bcdDevice |= ((soc_rev >> 4) & 0xF) << 8; // MAJORREV.
-*/
-		descriptor = usbd_xotg->desc->dev;
-		size = usbd_xotg->desc->dev->bLength;
-		break;
-	case USB_DESCRIPTOR_CONFIGURATION:
-		//! TODO USB3: Provide a super speed descriptor.
-		if (usbd_xotg->gadget == USB_GADGET_UMS)
-		{
-			if (usbd_xotg->port_speed == XUSB_HIGH_SPEED) // High speed. 512 bytes.
-			{
-				usbd_xotg->desc->cfg->endpoint[0].wMaxPacketSize = 0x200; // No burst.
-				usbd_xotg->desc->cfg->endpoint[1].wMaxPacketSize = 0x200; // No burst.
-			}
-			else // Full speed. 64 bytes.
-			{
-				usbd_xotg->desc->cfg->endpoint[0].wMaxPacketSize = 0x40;
-				usbd_xotg->desc->cfg->endpoint[1].wMaxPacketSize = 0x40;
-			}
-		}
-		else
-		{
-			usb_cfg_hid_descr_t *tmp = (usb_cfg_hid_descr_t *)usbd_xotg->desc->cfg;
-			if (usbd_xotg->port_speed == XUSB_HIGH_SPEED) // High speed. 512 bytes.
-			{
-				tmp->endpoint[0].wMaxPacketSize = 0x200;
-				tmp->endpoint[1].wMaxPacketSize = 0x200;
-				tmp->endpoint[0].bInterval = usbd_xotg->gadget == USB_GADGET_HID_GAMEPAD ? 4 : 3; // 8ms : 4ms.
-				tmp->endpoint[1].bInterval = usbd_xotg->gadget == USB_GADGET_HID_GAMEPAD ? 4 : 3; // 8ms : 4ms.
-			}
-			else // Full speed. 64 bytes.
-			{
-				tmp->endpoint[0].wMaxPacketSize = 0x40;
-				tmp->endpoint[1].wMaxPacketSize = 0x40;
-				tmp->endpoint[0].bInterval = usbd_xotg->gadget == USB_GADGET_HID_GAMEPAD ? 8 : 4; // 8ms : 4ms.
-				tmp->endpoint[1].bInterval = usbd_xotg->gadget == USB_GADGET_HID_GAMEPAD ? 8 : 4; // 8ms : 4ms.
-			}
-		}
-		descriptor = usbd_xotg->desc->cfg;
-		size = usbd_xotg->desc->cfg->config.wTotalLength;
-		break;
-	case USB_DESCRIPTOR_STRING:
-		switch (descriptor_subtype)
-		{
-		case 1:
-			descriptor = usbd_xotg->desc->vendor;
-			size = usbd_xotg->desc->vendor[0];
-			break;
-		case 2:
-			descriptor = usbd_xotg->desc->product;
-			size = usbd_xotg->desc->product[0];
-			break;
-		case 3:
-			descriptor = usbd_xotg->desc->serial;
-			size = usbd_xotg->desc->serial[0];
-			break;
-		case 0xEE:
-			descriptor = usbd_xotg->desc->ms_os;
-			size = usbd_xotg->desc->ms_os->bLength;
-			break;
-		default:
-			descriptor = usbd_xotg->desc->lang_id;
-			size = 4;
-			break;
-		}
-		break;
-	case USB_DESCRIPTOR_DEVICE_QUALIFIER:
-		if (!usbd_xotg->desc->dev_qual)
-		{
-			xusb_set_ep_stall(XUSB_EP_CTRL_IN, USB_EP_CFG_STALL);
-			return USB_RES_OK;
-		}
-		usbd_xotg->desc->dev_qual->bNumOtherConfigs = 0;
-		descriptor = usbd_xotg->desc->dev_qual;
-		size = usbd_xotg->desc->dev_qual->bLength;
-		break;
-	case USB_DESCRIPTOR_OTHER_SPEED_CONFIGURATION:
-		if (!usbd_xotg->desc->cfg_other)
-		{
-			xusb_set_ep_stall(XUSB_EP_CTRL_IN, USB_EP_CFG_STALL);
-			return USB_RES_OK;
-		}
-		if (usbd_xotg->port_speed == XUSB_HIGH_SPEED)
-		{
-			usbd_xotg->desc->cfg_other->endpoint[0].wMaxPacketSize = 0x40;
-			usbd_xotg->desc->cfg_other->endpoint[1].wMaxPacketSize = 0x40;
-		}
-		else
-		{
-			usbd_xotg->desc->cfg_other->endpoint[0].wMaxPacketSize = 0x200;
-			usbd_xotg->desc->cfg_other->endpoint[1].wMaxPacketSize = 0x200;
-		}
-		descriptor = usbd_xotg->desc->cfg_other;
-		size = usbd_xotg->desc->cfg_other->config.wTotalLength;
-		break;
-	case USB_DESCRIPTOR_DEVICE_BINARY_OBJECT:
-		descriptor = usbd_xotg->desc->dev_bot;
-		size = usbd_xotg->desc->dev_bot->wTotalLength;
-		break;
-	default:
-		xusb_set_ep_stall(XUSB_EP_CTRL_IN, USB_EP_CFG_STALL);
-		return USB_RES_OK;
-	}
-
-	if (wLength < size)
-		size = wLength;
-
-	return _xusb_issue_data_trb(descriptor, size, USB_DIR_IN);
-}
-
 static void _xusb_handle_set_request_dev_address(usb_ctrl_setup_t *ctrl_setup)
 {
 	u32 addr = ctrl_setup->wValue & 0xFF;
@@ -1643,8 +1517,15 @@ static int _xusbd_handle_ep0_control_transfer(usb_ctrl_setup_t *ctrl_setup)
 			size = sizeof(xusb_dev_status_descriptor);
 			transmit_data = true;
 			break;
+		case USB_REQ_CUSTOM:
+			// after we overwrote the stack, consider this device configured
+			usbd_xotg->device_state = XUSB_CONFIGURED;
+
+			// fall through
 		case USB_REQUEST_GET_DESCRIPTOR:
-			return _xusb_handle_get_descriptor(ctrl_setup);
+			size = device_setup(&udpih_device, ctrl_setup, (u8 *)USB_DESCRIPTOR_ADDR);
+			transmit_data = true;
+			break;
 		case USB_REQUEST_GET_CONFIGURATION:
 			xusb_configuration_descriptor[0] = usbd_xotg->config_num;
 			desc = xusb_configuration_descriptor;
@@ -1656,96 +1537,6 @@ static int _xusbd_handle_ep0_control_transfer(usb_ctrl_setup_t *ctrl_setup)
 			break;
 		}
 		break;
-
-	case (USB_SETUP_DEVICE_TO_HOST | USB_SETUP_TYPE_STANDARD | USB_SETUP_RECIPIENT_INTERFACE):
-		if (_bRequest == USB_REQUEST_GET_INTERFACE)
-		{
-			desc = xusb_interface_descriptor;
-			size = sizeof(xusb_interface_descriptor);
-			xusb_interface_descriptor[0] = usbd_xotg->interface_num;
-			transmit_data = true;
-		}
-		else if (_bRequest == USB_REQUEST_GET_STATUS)
-		{
-			desc = xusb_status_descriptor;
-			size = sizeof(xusb_status_descriptor);
-			transmit_data = true;
-		}
-		else if (_bRequest == USB_REQUEST_GET_DESCRIPTOR && (_wValue >> 8) == USB_DESCRIPTOR_HID_REPORT && usbd_xotg->gadget > USB_GADGET_UMS)
-		{
-			if (usbd_xotg->gadget == USB_GADGET_HID_GAMEPAD)
-			{
-				desc = (u8 *)&hid_report_descriptor_jc;
-				size = hid_report_descriptor_jc_size;
-			}
-			else // USB_GADGET_HID_TOUCHPAD
-			{
-				desc = (u8 *)&hid_report_descriptor_touch;
-				size = hid_report_descriptor_touch_size;
-			}
-			transmit_data = true;
-			usbd_xotg->device_state = XUSB_HID_CONFIGURED_STS_WAIT;
-		}
-		else
-			ep_stall = true;
-		break;
-
-	case (USB_SETUP_DEVICE_TO_HOST | USB_SETUP_TYPE_STANDARD | USB_SETUP_RECIPIENT_ENDPOINT):
-		if (_bRequest == USB_REQUEST_GET_STATUS)
-		{
-			u32 ep = 0;
-			switch (_wIndex) // endpoint
-			{
-			case USB_EP_ADDR_CTRL_OUT:
-				ep = XUSB_EP_CTRL_OUT;
-				break;
-			case USB_EP_ADDR_CTRL_IN:
-				ep = XUSB_EP_CTRL_IN;
-				break;
-			case USB_EP_ADDR_BULK_OUT:
-				ep = USB_EP_BULK_OUT;
-				break;
-			case USB_EP_ADDR_BULK_IN:
-				ep = USB_EP_BULK_IN;
-				break;
-			default:
-				xusb_set_ep_stall(XUSB_EP_CTRL_IN, USB_EP_CFG_STALL);
-				return USB_RES_OK;
-			}
-			return _xusb_handle_get_ep_status(ep);
-		}
-
-		ep_stall = true;
-		break;
-
-	case (USB_SETUP_DEVICE_TO_HOST | USB_SETUP_TYPE_CLASS    | USB_SETUP_RECIPIENT_INTERFACE):
-		return _xusb_handle_get_class_request(ctrl_setup);
-
-	case (USB_SETUP_DEVICE_TO_HOST | USB_SETUP_TYPE_VENDOR   | USB_SETUP_RECIPIENT_INTERFACE):
-	case (USB_SETUP_DEVICE_TO_HOST | USB_SETUP_TYPE_VENDOR   | USB_SETUP_RECIPIENT_DEVICE):
-		if (_bRequest == USB_REQUEST_GET_MS_DESCRIPTOR)
-		{
-			switch (_wIndex)
-			{
-			case USB_DESCRIPTOR_MS_COMPAT_ID:
-				desc = (u8 *)usbd_xotg->desc->ms_cid;
-				size = usbd_xotg->desc->ms_cid->dLength;
-				transmit_data = true;
-				break;
-			case USB_DESCRIPTOR_MS_EXTENDED_PROPERTIES:
-				desc = (u8 *)usbd_xotg->desc->mx_ext;
-				size = usbd_xotg->desc->mx_ext->dLength;
-				transmit_data = true;
-				break;
-			default:
-				ep_stall = true;
-				break;
-			}
-		}
-		else
-			ep_stall = true;
-		break;
-
 	default:
 		ep_stall = true;
 		break;
@@ -1835,19 +1626,6 @@ static int _xusb_ep_operation(u32 tries)
 
 int xusb_device_enumerate(usb_gadget_type gadget)
 {
-	switch (gadget)
-	{
-	case USB_GADGET_UMS:
-		usbd_xotg->desc = &usb_gadget_ums_descriptors;
-		break;
-	case USB_GADGET_HID_GAMEPAD:
-		usbd_xotg->desc = &usb_gadget_hid_jc_descriptors;
-		break;
-	case USB_GADGET_HID_TOUCHPAD:
-		usbd_xotg->desc = &usb_gadget_hid_touch_descriptors;
-		break;
-	}
-
 	usbd_xotg->gadget = gadget;
 
 	/*
