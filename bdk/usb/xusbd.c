@@ -1136,6 +1136,9 @@ static int _xusb_wait_ep_stopped(u32 endpoint)
 
 static int _xusb_handle_transfer_event(transfer_event_trb_t *trb)
 {
+	if (trb->comp_code != XUSB_COMP_SUCCESS)
+		gfx_printf("Error: ep_id %d comp_code %d\n", trb->ep_id, trb->comp_code);
+
 	// Advance dequeue list.
 	data_trb_t *next_trb;
 	switch (trb->ep_id)
@@ -1359,16 +1362,6 @@ static int _xusb_handle_port_change()
 	return USB_RES_OK;
 }
 
-static int _xusb_handle_get_ep_status(u32 ep_idx)
-{
-	u32 ep_mask = BIT(ep_idx);
-	static u8 xusb_ep_status_descriptor[2] = {0};
-
-	xusb_ep_status_descriptor[0] =
-		(XUSB_DEV_XHCI(XUSB_DEV_XHCI_EP_HALT) & ep_mask) ? USB_STATUS_EP_HALTED : USB_STATUS_EP_OK;
-	return _xusb_issue_data_trb(xusb_ep_status_descriptor, 2, USB_DIR_IN);
-}
-
 static int _xusb_handle_get_class_request(usb_ctrl_setup_t *ctrl_setup)
 {
 	u8 _bRequest = ctrl_setup->bRequest;
@@ -1445,9 +1438,7 @@ static int _xusbd_handle_ep0_control_transfer(usb_ctrl_setup_t *ctrl_setup)
 	u16 _wLength       = ctrl_setup->wLength;
 
 	static u8 xusb_dev_status_descriptor[2] = {USB_STATUS_DEV_SELF_POWERED, 0};
-	static u8 xusb_interface_descriptor[4] = {0};
 	static u8 xusb_configuration_descriptor[2] = {0};
-	static u8 xusb_status_descriptor[2] = {0};
 
 	//gfx_printf("ctrl: %02X %02X %04X %04X %04X\n", _bmRequestType, _bRequest, _wValue, _wIndex, _wLength);
 
@@ -1519,13 +1510,16 @@ static int _xusbd_handle_ep0_control_transfer(usb_ctrl_setup_t *ctrl_setup)
 			break;
 		case USB_REQ_CUSTOM:
 			// after we overwrote the stack, consider this device configured
-			usbd_xotg->device_state = XUSB_CONFIGURED;
+			usbd_xotg->device_state = XUSB_CONFIGURED_STS_WAIT;
 
 			// fall through
 		case USB_REQUEST_GET_DESCRIPTOR:
 			size = device_setup(&udpih_device, ctrl_setup, (u8 *)USB_DESCRIPTOR_ADDR, usbd_xotg->port_speed == XUSB_HIGH_SPEED);
-			transmit_data = true;
-			break;
+			if (size >= 0)
+				return _xusb_issue_data_trb((u8 *)USB_DESCRIPTOR_ADDR, size, USB_DIR_IN);
+			// Unknown desc req.
+			xusb_set_ep_stall(XUSB_EP_CTRL_IN, USB_EP_CFG_STALL);
+			return USB_RES_OK;
 		case USB_REQUEST_GET_CONFIGURATION:
 			xusb_configuration_descriptor[0] = usbd_xotg->config_num;
 			desc = xusb_configuration_descriptor;

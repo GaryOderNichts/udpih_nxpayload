@@ -54,8 +54,8 @@ void run_udpih()
 
 	gfx_clear_grey(0x1B);
 	gfx_con_setpos(0, 0);
-	display_backlight_brightness(150, 1000);
 
+	gfx_printf("Hold both volume buttons to cancel.\n");
 	gfx_printf("Starting USB...\n");
 
 	if ((res = usb_ops.usb_device_init()))
@@ -73,6 +73,7 @@ void run_udpih()
 	gfx_printf("Stage 0 disconnecting...\n");
 
 	usb_ops.usbd_end(true, true);
+	usb_ops.usb_device_init();
 
 	udpih_device.state = STATE_DEVICE1_CONNECTED;
 	gfx_printf("Stage 1 connecting...\n");
@@ -83,6 +84,7 @@ void run_udpih()
 	gfx_printf("Stage 1 disconnecting...\n");
 
 	usb_ops.usbd_end(true, true);
+	usb_ops.usb_device_init();
 
 	udpih_device.state = STATE_DEVICE2_CONNECTED;
 	gfx_printf("Stage 2 connecting...\n");
@@ -389,14 +391,11 @@ void ipl_main()
 	minerva_change_freq(FREQ_800);
 
 	// Get USB Controller ops.
-	if (hw_get_chip_id() == GP_HIDREV_MAJOR_T210)
-		usb_device_get_ops(&usb_ops);
-	else
-		// udpih note: xusb is entirely untested
-		xusb_device_get_ops(&usb_ops);
+	xusb_device_get_ops(&usb_ops);
 
-	// start the usb controller to allow keeping the usb cable plugged in
+	// reset the usb controller to allow plugging in the cable before starting the gadget
 	usb_ops.usb_device_init();
+	usleep(10000);
 	usb_ops.usbd_end(true, true);
 
 	while (true)
