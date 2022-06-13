@@ -345,6 +345,13 @@ ment_t ment_top[] = {
 
 menu_t menu_top = { ment_top, "udpih_nxpayload", 0, 0 };
 
+void disable_menu_entry(ment_t* item)
+{
+	item->type = MENT_CAPTION;
+	item->handler = NULL;
+	item->color = 0xFF444444;
+}
+
 extern void pivot_stack(u32 stack_top);
 
 void ipl_main()
@@ -386,6 +393,14 @@ void ipl_main()
 
 	// Overclock BPMP.
 	bpmp_clk_rate_set(h_cfg.t210b01 ? BPMP_CLK_DEFAULT_BOOST : BPMP_CLK_LOWER_BOOST);
+
+	// disable "Reboot to hekate" if hekate is not found
+	if (f_stat("bootloader/update.bin", NULL))
+		disable_menu_entry(&ment_top[3]);
+
+	// disable "Reboot (RCM)" on mariko or patched units
+	if (h_cfg.t210b01 || h_cfg.rcm_patched)
+		disable_menu_entry(&ment_top[6]);
 
 	// Set ram to a freq that doesn't need periodic training.
 	minerva_change_freq(FREQ_800);
