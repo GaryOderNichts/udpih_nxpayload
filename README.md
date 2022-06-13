@@ -1,5 +1,5 @@
 # UDPIH Nintendo Switch Payload
-This is a payload to run [UDPIH](https://github.com/GaryOderNichts/udpih) from an unpatched Nintendo Switch.
+This is a payload to run [UDPIH](https://github.com/GaryOderNichts/udpih) using a Nintendo Switch.
 
 ## Instructions
 - Download the latest `udpih_nxpayload.bin` from the [releases page](https://github.com/GaryOderNichts/udpih_nxpayload/releases) and inject it using a payload injector.
