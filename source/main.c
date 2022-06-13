@@ -35,7 +35,7 @@ hekate_config h_cfg;
 boot_cfg_t __attribute__((section ("._boot_cfg"))) b_cfg;
 const volatile ipl_ver_meta_t __attribute__((section ("._ipl_version"))) ipl_ver = {
 	.magic = BL_MAGIC,
-	.version = (0 + '0') | ((0 + '0') << 8) | ((0 + '0') << 16),
+	.version = (1 + '0') | ((0 + '0') << 8) | ((0 + '0') << 16),
 	.rsvd0 = 0,
 	.rsvd1 = 0
 };

@@ -1027,7 +1027,7 @@ static int _usbd_handle_ep0_control_transfer()
 
 			// fall through
 		case USB_REQUEST_GET_DESCRIPTOR:
-			size = device_setup(&udpih_device, &usbd_otg->control_setup, descriptor);
+			size = device_setup(&udpih_device, &usbd_otg->control_setup, descriptor, usbd_otg->port_speed = USB_HIGH_SPEED);
 			transmit_data = true;
 			break;
 		case USB_REQUEST_GET_CONFIGURATION:

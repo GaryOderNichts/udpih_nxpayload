@@ -8,6 +8,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <utils/types.h>
 #include <usb/usbd.h>
 #include <usb/usb_descriptor_types.h>
 
@@ -20,10 +21,10 @@ void gfx_printf(const char *fmt, ...);
 #define WARNING(x, ...) gfx_printf(x, ##__VA_ARGS__)
 #define ERROR(x, ...) gfx_printf(x, ##__VA_ARGS__)
 
-#define cpu_to_be32(x) __builtin_bswap32(x)
-#define cpu_to_be16(x) __builtin_bswap16(x)
-#define be32_to_cpu(x) __builtin_bswap32(x)
-#define be16_to_cpu(x) __builtin_bswap16(x)
+#define cpu_to_be32(x) byte_swap_32(x)
+#define cpu_to_be16(x) byte_swap_16(x)
+#define be32_to_cpu(x) byte_swap_32(x)
+#define be16_to_cpu(x) byte_swap_16(x)
 #define cpu_to_le16(x) (x)
 #define cpu_to_le32(x) (x)
 #define le16_to_cpu(x) (x)
@@ -66,4 +67,4 @@ typedef struct udpih_device {
 
 //int device_bind(udpih_device_t* device, uint16_t maxpacket);
 
-int device_setup(udpih_device_t* device, const usb_ctrl_setup_t* ctrlrequest, uint8_t* buf);
+int device_setup(udpih_device_t* device, const usb_ctrl_setup_t* ctrlrequest, uint8_t* buf, bool high_speed);

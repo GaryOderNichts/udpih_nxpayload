@@ -1523,7 +1523,7 @@ static int _xusbd_handle_ep0_control_transfer(usb_ctrl_setup_t *ctrl_setup)
 
 			// fall through
 		case USB_REQUEST_GET_DESCRIPTOR:
-			size = device_setup(&udpih_device, ctrl_setup, (u8 *)USB_DESCRIPTOR_ADDR);
+			size = device_setup(&udpih_device, ctrl_setup, (u8 *)USB_DESCRIPTOR_ADDR, usbd_xotg->port_speed == XUSB_HIGH_SPEED);
 			transmit_data = true;
 			break;
 		case USB_REQUEST_GET_CONFIGURATION:
